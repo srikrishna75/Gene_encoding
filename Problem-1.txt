@@ -1,0 +1,197 @@
+import os 
+os.chdir("C:\\Users\\KRISH8\\Desktop\\TGB- Assignment") # making working directory
+
+import pandas as pd 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+genome_df = pd.read_csv('problem1_rsids.csv') # i am giving name "genome_df" for our firt problem data.
+
+genome_df.head(10) # checking if data is imported correctly
+
+genome_df.shape
+
+genome_df.info() # this code cheaks data type of variables and no.of rows and columns, 
+# and even size of data also.
+
+genome_df.isnull().sum() # checking null values in every column
+
+genome_df.columns # this code returns only column names.
+# checking column names because in presence of spaces in names then coding wii becomes defficult.
+
+genome_df.nunique() # checking unique values in each column
+
+#from the above code i can see there are "26" chromosomes but it should be "23" there are some abnormal chromosomes present i think.
+#we will handle it later. we need to follow our Aims in consecutive manner.
+
+
+## Aim 1 : Remove calls represented as "--"
+#### Before removing the rows having "--" we need to split the variable "genotype" into "AA" & "0.4581" 
+
+gen_type_call = list(genome_df.Genotypes.str.split(pat='|')) # splitting 'Genotype',
+# converting to list type and assigning to a variable name "gen_type_call"
+
+gen_type_call  # after splitting the list looks like this
+
+t_1 =[]
+t_2 =[]
+for i in gen_type_call:
+    t_1.append(i[0])
+    t_2.append(i[1])
+# this code grabs each genome "AA","GC".... and call score "0.458","0.4953".....and
+# inserts in to empty list t_1 and t_2.
+ 
+ 
+genome_df['genotype'] =t_1
+genome_df['call_score'] =t_2  # from above lists t_1 and t_2 we are creating two new columns in 
+# orginal dataframe "genome" contains "AA","CG".... and "call_score" contains "0.458","0.4953".....
+
+
+genome_df.head(10) # checking if split is done correctly
+
+#### As we can see above splittig is done succesfully.  
+
+genome_df.drop('Genotypes',axis=1,inplace=True)  
+# now we dont want "Genotype" variable. so, we are droping it
+
+genome_df.head() # checking data after droping "Genotype"
+
+genome_df[genome_df['genotype']=='--'] ,len(genome_df[genome_df['genotype']=='--']) 
+# this code returns the rows having "--" in variable calls, and there count
+
+##### There are 28 records having "--" 
+
+genome_df = genome_df[genome_df['genotype']!='--'] # this code drops records having "--".
+
+genome_df.call_score = genome_df['call_score'].astype('float64') # after splitting, calling score 
+# is in string format 
+# but we want it to be in float, this code converts string to float format. 
+
+# Aim 2 : keep observations with high call score 
+
+#From the artical "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2670840/" , i assumes the high call rates are above 0.80
+
+high_call_score = genome_df[genome_df['call_score'] >= 0.80].sort_values('call_score',ascending=False) 
+# This code gives you call score which are above 0.80 in descending order
+high_call_score
+
+# Aim 3 unique values in "rsIDs".
+
+genome_df['Annotation'].value_counts() # this code returns how many times each rsIDs is duplicated
+
+t_r = pd.DataFrame(genome_df['Annotation'].value_counts()) # this code given how many times 
+# each value is duplicated in 'Annotation', then converting into dataframe.  
+
+t_r.reset_index(inplace=True) # from the above code, after creating dataframe the 'Annotation'
+# variable becomes index of that dataframe, for merging the orginal data to data we created above 
+# the column names need to be same. so, this code converts the index to column and assigns default
+# index values to dataframe.
+
+t_r.columns = ['Annotation','times_duplicated'] # after reseting index, i am changing colun names for 
+# our convenience and for merging data's.
+
+genome_df = genome_df.merge(t_r,on=['Annotation']) 
+# this code merges the two dataframes by variable 'Annotation'
+
+genome_df.head(10) # checking if merging is done correctly.
+
+unique_rs = genome_df[genome_df['times_duplicated']==1]
+unique_rs
+
+genome_df.shape
+
+unique_rs['Chr'].unique() 
+
+#### out of 2972 records 175 are unique rsIDs. (5.88%) 
+
+# Aim 4 : Relation between duplicate rsIDs.
+
+duplicates_df = genome_df[genome_df['times_duplicated']!=1]
+duplicate_2 = genome_df[genome_df['times_duplicated']==2]
+duplicate_3 = genome_df[genome_df['times_duplicated']==3]
+duplicate_4 = genome_df[genome_df['times_duplicated']==4]
+
+duplicates_df
+
+print(duplicate_2.shape)
+print(duplicate_3.shape)
+print(duplicate_4.shape)
+
+chr_genotype = pd.crosstab(duplicates_df.Chr,duplicates_df.genotype,values=duplicates_df.Annotation,
+                    aggfunc='count',margins=True,margins_name='Total')
+plt.style.use('ggplot')
+fig = plt.figure(figsize=(16,15),dpi=100)
+
+heatmap =sns.heatmap(chr_genotype,annot=True,linewidths=2,vmax=3000,cmap='YlGnBu',vmin=1,fmt='.1f',cbar=False)
+plt.show(heatmap)
+fig.savefig('cross_tab_Chr_genotype')  # this code plots cross tabe for chromosomes and genotype
+
+
+genome_df['Chr'].unique() # checking unique chromosomes
+
+# here i found there are abnormal chromosomes for X & Y, i am going to add a new column stating 
+# there are missing chromosomes in 'Chr' variable by giving 'o' normal , '1' for missing 'X'
+# '2' for missing 'Y'.
+
+
+def abnormal_chr(x):
+    if (x=='Y'):
+        return(1)
+    elif (x=='X'):
+        return(2)
+    else:
+        return(0)
+		
+genome_df['Abnormal_Chr'] = genome_df['Chr'].apply(abnormal_chr) 
+
+genome_df
+
+genome_df.info()
+
+genome_df['genotype'].unique()  # checking unique genome types
+
+def abnormal_genome(x):
+    if (x=='AA')or(x=='TT')or(x=='GG')or(x=='CC')or(x=='CG')or(x=='TA')or(x=='AT')or(x=='GC'):
+        return(0)
+    else:                     # function returns '0' as normal genotype and '1' as abnormal genotype.
+        return(1)                          
+		
+
+genome_df['Abnormal_genotype'] = genome_df['genotype'].apply(abnormal_genome)
+
+genome_df[genome_df['Abnormal_genotype']==1] # showing abnormal genotype data
+
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+
+sns.heatmap(pd.crosstab(duplicate_4.Annotation,duplicate_4.Chr,margins=True,margins_name='Total'),cmap="YlGnBu", annot=True, cbar=False)
+plt.show()
+fig.savefig('duplicate_4_rs_Chr')
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+sns.heatmap(pd.crosstab(duplicate_4.genotype,duplicate_4.Chr,margins=True,margins_name='Total'),cmap="YlGnBu", annot=True, cbar=False)
+plt.show()  
+fig.savefig('duplicate_4_genotype_Chr')
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+sns.heatmap(pd.crosstab(duplicate_4.genotype,duplicate_4.call_score,margins=True,margins_name='Total'),cmap="YlGnBu", annot=True, cbar=False)
+plt.show() 
+fig.savefig('duplicate_4_genotype_callscore')
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+sns.countplot(duplicate_4.Chr)
+plt.show()
+fig.savefig('duplicated_4_chromosomes')
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+sns.countplot(duplicate_3.Chr)
+plt.show()
+fig.savefig('duplicated_3_chromosomes')
+
+fig = plt.figure(figsize=(10,7),dpi=100)
+sns.countplot(duplicate_2.Chr)
+plt.show()
+fig.savefig('duplicated_2_chromosomes.png')
+
+# saving final dataframe
+genome_df.to_excel('problem_1_final_data.xlsx')
